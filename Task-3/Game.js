@@ -9,6 +9,7 @@ import Player from "./Player.js";
 import Computer from "./Computer.js";
 
 
+
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
@@ -28,6 +29,7 @@ class Game {
   }
 
   validateInput(args) {
+  
     if (args.length < 3) {
       this.exitWithError(
         "Provide at least 3 dice, each with six integer values."
@@ -39,17 +41,24 @@ class Game {
   }
 
   exitWithError(message) {
+   
     console.error(`ERROR: ${message}`);
+    console.error("Example : 2,2,4,4,9,9 6,8,1,1,8,6 7,5,3,7,5,3");
     process.exit(1);
   }
-
+  
+   
   determineFirstMove() {
     const key = HMACUtil.generateKey();
     const randomChoice = Math.floor(Math.random() * 2).toString();
     const hmac = HMACUtil.generateHMAC(randomChoice, key);
 
     console.log("HMAC:", hmac);
-    rl.question("Guess my choice (0 or 1): ", (input) => {
+    rl.question("Guess my choice (0 or 1, ? for help, X to exit):", (input) => {
+      if (this.handleSpecialCommands(input,)) {
+        this.determineFirstMove();
+        return;
+      }
       if (HMACUtil.verifyHMAC(hmac, input, key)) {
         console.log("You guessed right! You start.");
         this.whoStarts = "User";
@@ -57,7 +66,9 @@ class Game {
         console.log("You guessed wrong! Computer starts.");
         this.whoStarts = "Computer";
       }
+      console.log("My choice is: ", randomChoice);
       console.log("KEY :", key);
+    
       this.startGame();
     });
   }
@@ -93,7 +104,7 @@ class Game {
   }
 
   startGame() {
-    this.initializeProbabilities();
+ 
 
     if (this.whoStarts === "User") {
       this.userChooseDice(false);
@@ -103,13 +114,17 @@ class Game {
   }
 
   userChooseDice(alreadyChosen) {
-    console.log("Choose your dice:");
+    console.log("Choose your dice (? for help, X for exit ): ");
     this.diceSet.forEach((dice, index) =>
       console.log(`${index}: ${dice.values}`)
     );
 
     rl.question("Your selection: ", (input) => {
       const selection = parseInt(input);
+      if(this.handleSpecialCommands(input)){
+        this.userChooseDice(false);
+        return;
+      }
       if (
         !isNaN(selection) &&
         selection >= 0 &&
@@ -117,7 +132,7 @@ class Game {
       ) {
         this.user.chooseDice(this.diceSet, selection);
         console.log(
-          `You chose dice at index ${selection}: ${this.user.getDice().values}`
+          `You chose dice: ${this.user.getDice().values}`
         );
         if(alreadyChosen){
           this.playRound();
@@ -134,7 +149,7 @@ class Game {
   computerChooseDice(alreadyChosen) {
     const computerSelection = this.computer.chooseRandomDice(this.diceSet);
     console.log(
-      `Computer chose dice at index ${computerSelection}: ${this.computer.dice.values}`
+      `Computer chose dice: ${this.computer.dice.values}`
     );
     (alreadyChosen) ? this.playRound() : this.userChooseDice(true)
  
@@ -144,10 +159,10 @@ class Game {
     this.playTurn("Computer");
   }
 
-  handleSpecialCommands(input,turn) {
+  handleSpecialCommands(input) {
     if (input === "?") {
       this.tableProbabilities.showTable();
-      this.playTurn(turn);
+    
     } else if (input.toLowerCase() === "x") {
       console.log("Exiting the game.");
       process.exit(0);
@@ -159,18 +174,21 @@ class Game {
 
   playTurn(currentPlayer) {
     const player = currentPlayer === "User" ? this.user : this.computer;
-    const opponent = currentPlayer === "User" ? this.computer : this.user;
+    
 
     console.log(`${currentPlayer}'s turn!`);
     const key = HMACUtil.generateKey();
     const randomIndex = Math.floor(Math.random() * 6).toString();
     const hmac = HMACUtil.generateHMAC(randomIndex, key);
-
+    console.log("I selected a random value in the range 0..5 ")
     console.log("HMAC:", hmac);
     rl.question(
       `${currentPlayer}, make your move (0-5, ? for help, X to exit): `,
       (input) => {
-        if (this.handleSpecialCommands(input,currentPlayer)) return;
+        if (this.handleSpecialCommands(input)){
+          this.playTurn(currentPlayer);
+          return;
+        } 
 
         const userMove = parseInt(input);
         if (isNaN(userMove) || userMove < 0 || userMove > 5) {
@@ -178,6 +196,8 @@ class Game {
           this.playTurn(currentPlayer);
         } else {
           const result = (parseInt(randomIndex) + userMove) % 6;
+          console.log("My choice is: ", randomIndex);
+          console.log("KEY :", key);
           console.log(`${randomIndex} + ${userMove} % 6 = ${result}`);
           console.log("Result:", result);
           const throwValue = player.dice.values[result];
@@ -185,7 +205,7 @@ class Game {
             ? this.user.setValue(throwValue)
             : this.computer.setValue(throwValue);
           console.log(`${currentPlayer} throws: ${throwValue}`);
-          console.log("KEY :", key);
+          
 
           if (currentPlayer === "Computer") {
             this.playTurn("User");
@@ -213,4 +233,5 @@ class Game {
 
 const args = process.argv.slice(2).map((arg) => arg.split(",").map(Number));
 const game = new Game(args);
+game.initializeProbabilities();
 game.determineFirstMove();
